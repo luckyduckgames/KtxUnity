@@ -22,8 +22,18 @@ using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Networking;
 using Unity.Collections;
+using System.Collections;
+using System;
 
-namespace KtxUnity {
+namespace KtxUnity
+{
+
+    public class KtxCoroutineContext
+    {
+        public MonoBehaviour Context { get; set; }
+    }
+
+
     public abstract class TextureBase
     {
         protected const string ERR_MSG_TRANSCODE_FAILED = "Transcoding failed!";
@@ -33,25 +43,25 @@ namespace KtxUnity {
         /// see https://docs.unity3d.com/Manual/StreamingAssets.html
         /// </summary>
         /// <param name="filePath">Path to the file, relative to StreamingAssets</param>
-        public async Task<TextureResult> LoadFromStreamingAssets( string filePath, bool linear = false ) {
+        public IEnumerator LoadFromStreamingAssets(KtxCoroutineContext ctx, Action<TextureResult> resultCallback, string filePath, bool linear = false) {
             var url = GetStreamingAssetsUrl(filePath);
-            return await LoadFile(url,linear);
+            yield return ctx.Context.StartCoroutine(LoadFile(ctx, resultCallback, url, linear));
         }
 
         /// <summary>
         /// Loads a KTX or Basis Universal texture from an URL
         /// </summary>
         /// <param name="url">URL to the ktx/basis file to load</param>
-        public async Task<TextureResult> LoadFromUrl( string url, bool linear = false ) {
-            return await LoadFile(url,linear);
+        public IEnumerator LoadFromUrl(KtxCoroutineContext ctx, Action<TextureResult> resultCallback, string url, bool linear = false) {
+            yield return ctx.Context.StartCoroutine(LoadFile(ctx, resultCallback, url, linear));
         }
 
         /// <summary>
         /// Load a KTX or Basis Universal texture from a buffer
         /// </summary>
         /// <param name="data">Native buffer that holds the ktx/basisu file</param>
-        public async Task<TextureResult> LoadFromBytes( NativeSlice<byte> data, bool linear = false ) {
-            return await LoadBytesRoutine(data,linear);
+        public IEnumerator LoadFromBytes(KtxCoroutineContext ctx, Action<TextureResult> resultCallback, NativeSlice<byte> data, bool linear = false) {
+            yield return ctx.Context.StartCoroutine(LoadBytesRoutine(ctx, resultCallback, data, linear));
         }
 
         /// <summary>
@@ -61,7 +71,7 @@ namespace KtxUnity {
         /// </summary>
         /// <param name="subPath">Path, relative to StreamingAssets. Example: path/to/file.ktx</param>
         /// <returns>Platform independent URI that can be loaded via UnityWebRequest</returns>
-        public static string GetStreamingAssetsUrl( string subPath ) {
+        public static string GetStreamingAssetsUrl(string subPath) {
 
             var path = Path.Combine(Application.streamingAssetsPath,subPath);
 
@@ -72,31 +82,29 @@ namespace KtxUnity {
             return path;
         }
 
-        async Task<TextureResult> LoadFile( string url, bool linear = false ) {
-    
+        IEnumerator LoadFile(KtxCoroutineContext ctx, Action<TextureResult> resultCallback, string url, bool linear = false) {
+
             var webRequest = UnityWebRequest.Get(url);
-            var asyncOp = webRequest.SendWebRequest();
-            while (!asyncOp.isDone) {
-                await Task.Yield();
-            }
+            yield return webRequest.SendWebRequest();
 
             if(!string.IsNullOrEmpty(webRequest.error)) {
                 Debug.LogErrorFormat("Error loading {0}: {1}",url,webRequest.error);
-                return null;
+                yield break;
             }
 
             var buffer = webRequest.downloadHandler.data;
 
             var na = new NativeArray<byte>(buffer,KtxNativeInstance.defaultAllocator);
-            var result = await LoadBytesRoutine(na,linear);
+
+            yield return ctx.Context.StartCoroutine(LoadBytesRoutine(ctx, resultCallback, na, linear));
+
             na.Dispose();
-            return result;
         }
 
-        public abstract Task<TextureResult> LoadBytesRoutine( NativeSlice<byte> data, bool linear = false );
+        public abstract IEnumerator LoadBytesRoutine(KtxCoroutineContext ctx, Action<TextureResult> resultCallback, NativeSlice<byte> data, bool linear = false);
 
-        protected virtual TranscodeFormatTuple? GetFormat( IMetaData meta, ILevelInfo li, bool linear = false ) {
-            return TranscodeFormatHelper.GetFormatsForImage(meta,li,linear);
+        protected virtual TranscodeFormatTuple? GetFormat(IMetaData meta, ILevelInfo li, bool linear = false) {
+            return TranscodeFormatHelper.GetFormatsForImage(meta, li, linear);
         }
     }
 }

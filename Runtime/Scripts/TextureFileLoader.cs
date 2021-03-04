@@ -12,26 +12,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+using System;
+using System.Collections;
 using System.Threading.Tasks;
 
-namespace KtxUnity {
-    public abstract class TextureFileLoader<TextureType> : TextureLoaderBase where TextureType:TextureBase,new()
+namespace KtxUnity
+{
+    public abstract class TextureFileLoader<TextureType> : TextureLoaderBase where TextureType : TextureBase, new()
     {
         public string filePath;
         public bool linear;
 
-        protected virtual async void Start() {
-            var result = await LoadFromStreamingAssets();
-            OnTextureLoaded(result);
+        protected virtual IEnumerator Start() {
+            yield return StartCoroutine(LoadFromStreamingAssets(result => { OnTextureLoaded(result); }));
         }
 
         /// <summary>
         /// Demonstrates how to load a texture file from the StreamingAssets
         /// folder (see https://docs.unity3d.com/Manual/StreamingAssets.html)
         /// </summary>
-        protected async Task<TextureResult> LoadFromStreamingAssets(TextureType txt = null) {
+        protected IEnumerator LoadFromStreamingAssets(Action<TextureResult> resultCalback, TextureType txt = null) {
             var texture = txt==null ? new TextureType() : txt;
-            return await texture.LoadFromStreamingAssets(filePath,linear);
+
+            var ctx = new KtxCoroutineContext {
+                Context = this
+            };
+
+            yield return StartCoroutine(texture.LoadFromStreamingAssets(ctx, result => { resultCalback?.Invoke(result); }, filePath, linear));
         }
     }
 }

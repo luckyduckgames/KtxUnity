@@ -61,7 +61,7 @@ namespace KtxUnity {
 
     struct FormatInfo {
         public TextureFeatures features;
-        public TranscodeFormatTuple formats; 
+        public TranscodeFormatTuple formats;
 
         public FormatInfo(TextureFeatures features, GraphicsFormat format, TranscodeFormat transcodeFormat ) {
             this.features = features;
@@ -79,17 +79,27 @@ namespace KtxUnity {
         {
             initialized=true;
             formatCache = new Dictionary<TextureFeatures, TranscodeFormatTuple>();
-            
+
             if(allFormats==null) {
 
                 allFormats = new List<FormatInfo>();
-                
+
                 // Add all formats into the List ordered. First supported match will be used.
                 // This particular order is based on memory size (1st degree)
                 // and a combination of quality and transcode speed (2nd degree)
                 // source <http://richg42.blogspot.com/2018/05/basis-universal-gpu-texture-format.html>
 
                 // Compressed
+                allFormats.Add( new FormatInfo(
+                    TextureFeatures.NonPowerOfTwo | TextureFeatures.NonSquare,
+                    GraphicsFormat.RGBA_ASTC4X4_SRGB,
+                    TranscodeFormat.ASTC_4x4_RGBA));
+
+                allFormats.Add( new FormatInfo(
+                    TextureFeatures.NonPowerOfTwo | TextureFeatures.NonSquare | TextureFeatures.Linear,
+                    GraphicsFormat.RGBA_ASTC4X4_UNorm,
+                    TranscodeFormat.ASTC_4x4_RGBA));
+
                 allFormats.Add( new FormatInfo(
                     TextureFeatures.NonPowerOfTwo | TextureFeatures.NonSquare,
                     GraphicsFormat.RGB_ETC2_SRGB,
@@ -258,7 +268,7 @@ namespace KtxUnity {
                 li.isSquare,
                 linear
                 );
-            
+
             if( !formats.HasValue && meta.hasAlpha ) {
                 // Fall back to transcode RGB-only to RGBA texture
                 formats = TranscodeFormatHelper.GetPreferredFormat(
@@ -270,7 +280,7 @@ namespace KtxUnity {
             }
             return formats;
         }
-        
+
         public static TranscodeFormatTuple? GetPreferredFormat(
             bool hasAlpha,
             bool isPowerOfTwo,

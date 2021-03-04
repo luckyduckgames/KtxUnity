@@ -18,11 +18,12 @@ using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Profiling;
 using Unity.Collections;
+using System;
 
 namespace KtxUnity {
     public class KtxTexture : TextureBase
     {
-        public override async Task<TextureResult> LoadBytesRoutine(NativeSlice<byte> data, bool linear = false) {
+        public override IEnumerator LoadBytesRoutine(KtxCoroutineContext ctx, Action<TextureResult> resultCallback, NativeSlice<byte> data, bool linear = false) {
 
             var orientation = TextureOrientation.UNITY_DEFAULT;
 
@@ -33,7 +34,7 @@ namespace KtxUnity {
                 orientation = ktx.orientation;
                 if(ktx.ktxClass==KtxClassId.ktxTexture2_c) {
                     if(ktx.needsTranscoding) {
-                        texture = await Transcode(ktx,linear);
+                        yield return ctx.Context.StartCoroutine(Transcode(ctx, resultTexture => { texture = resultTexture; }, ktx, linear));
                     } else {
                         Debug.LogError("Only supercompressed KTX is supported");
                     }
@@ -42,15 +43,15 @@ namespace KtxUnity {
                 }
             }
             ktx.Unload();
-            return new TextureResult(texture, orientation);
+            resultCallback?.Invoke(new TextureResult(texture, orientation));
         }
 
-        async Task<Texture2D> Transcode(KtxNativeInstance ktx, bool linear) {
+        IEnumerator Transcode(KtxCoroutineContext ctx, Action<Texture2D> resultCallback, KtxNativeInstance ktx, bool linear) {
             // TODO: Maybe do this somewhere more central
             TranscodeFormatHelper.Init();
 
             Texture2D texture = null;
-            
+
             var formats = GetFormat(ktx,ktx,linear);
 
             if(formats.HasValue) {
@@ -61,16 +62,16 @@ namespace KtxUnity {
                 Profiler.BeginSample("KtxTranscode");
 
                 var job = new KtxTranscodeJob();
-                
+
                 var jobHandle = ktx.LoadBytesJob(
                     ref job,
                     formats.Value.transcodeFormat
                     );
 
                 Profiler.EndSample();
-                
+
                 while(!jobHandle.IsCompleted) {
-                    await Task.Yield();
+                    yield return null;
                 }
                 jobHandle.Complete();
 
@@ -99,7 +100,7 @@ namespace KtxUnity {
                 }
                 job.result.Dispose();
             }
-            return texture;
+            resultCallback?.Invoke(texture);
         }
     }
 }

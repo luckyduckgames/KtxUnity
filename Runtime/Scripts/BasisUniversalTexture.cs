@@ -14,24 +14,25 @@
 
 using System.Collections;
 using System.Threading.Tasks;
-    
+
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Profiling;
 using Unity.Collections;
+using System;
 
 namespace KtxUnity {
 
     public class BasisUniversalTexture : TextureBase
     {
-        public override async Task<TextureResult> LoadBytesRoutine(NativeSlice<byte> data, bool linear = false) {
+        public override IEnumerator LoadBytesRoutine(KtxCoroutineContext ctx, Action<TextureResult> resultCallback, NativeSlice<byte> data, bool linear = false) {
 
             bool yFlipped = true;
 
             var transcoder = BasisUniversal.GetTranscoderInstance();
 
             while(transcoder==null) {
-                await Task.Yield();
+                yield return null;
                 transcoder = BasisUniversal.GetTranscoderInstance();
             }
 
@@ -41,7 +42,7 @@ namespace KtxUnity {
                 var textureType = transcoder.GetTextureType();
                 if(textureType == BasisUniversalTextureType.Image2D) {
                     yFlipped = transcoder.GetYFlip();
-                    texture = await TranscodeImage2D(transcoder,data,linear);
+                    yield return ctx.Context.StartCoroutine(TranscodeImage2D(ctx, resultTexture => { texture = resultTexture; }, transcoder, data, linear));
                 } else {
                     Debug.LogErrorFormat("Basis Universal texture type {0} is not supported",textureType);
                 }
@@ -51,17 +52,17 @@ namespace KtxUnity {
 
             var orientation = TextureOrientation.KTX_DEFAULT;
             if(!yFlipped) {
-                // Regular basis files (no y_flip) seem to be 
+                // Regular basis files (no y_flip) seem to be
                 orientation |= TextureOrientation.Y_UP;
             }
 
-            return new TextureResult(texture, orientation);
+            resultCallback?.Invoke(new TextureResult(texture, orientation));
         }
 
-        async Task<Texture2D> TranscodeImage2D(BasisUniversalTranscoderInstance transcoder, NativeSlice<byte> data, bool linear) {
-            
+        IEnumerator TranscodeImage2D(KtxCoroutineContext ctx, Action<Texture2D> resultCallback, BasisUniversalTranscoderInstance transcoder, NativeSlice<byte> data, bool linear) {
+
             Texture2D texture = null;
-            
+
             // Can turn to parameter in future
             uint imageIndex = 0;
 
@@ -88,9 +89,9 @@ namespace KtxUnity {
                     );
 
                 Profiler.EndSample();
-                
+
                 while(!jobHandle.IsCompleted) {
-                    await Task.Yield();
+                    yield return null;
                 }
                 jobHandle.Complete();
 
@@ -116,7 +117,7 @@ namespace KtxUnity {
                 job.result.Dispose();
             }
 
-            return texture;
+            resultCallback?.Invoke(texture);
         }
     }
 }
