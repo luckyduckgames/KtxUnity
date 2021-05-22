@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2019-2021 Andreas Atteneder, All Rights Reserved.
+// Copyright (c) 2019-2021 Andreas Atteneder, All Rights Reserved.
 
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -52,7 +52,23 @@ namespace KtxUnity {
 
             Texture2D texture = null;
 
+
+#if UNITY_STANDALONE
+            TranscodeFormatTuple? formats = null;
+            if (linear) {
+                formats = new TranscodeFormatTuple {
+                    transcodeFormat = TranscodeFormat.RGBA32,
+                    format = GraphicsFormat.R8G8B8A8_SRGB
+                };
+            } else {
+                formats = new TranscodeFormatTuple {
+                    transcodeFormat = TranscodeFormat.RGBA32,
+                    format = GraphicsFormat.R8G8B8A8_UNorm
+                };
+            }
+#else
             var formats = GetFormat(ktx,ktx,linear);
+#endif
 
             if(formats.HasValue) {
                 var gf = formats.Value.format;
